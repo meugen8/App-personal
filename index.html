@@ -71,7 +71,7 @@
 
     /* ico */
     .ico{display:inline-flex;align-items:center;flex-shrink:0}
-    .ico svg{display:block}
+    .ico svg{display:block;width:100%;height:100%}
 
     /* quick add */
     .qa-wrap{background:#fff;border:.5px solid var(--border);border-radius:8px;margin-bottom:20px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
@@ -232,7 +232,7 @@ const ICONS = {
   right: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
   x:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
 };
-function ico(name, size) { size = size || 20; return `<span class="ico" style="width:${size}px;height:${size}px">${ICONS[name]}</span>`; }
+function ico(name, size) { size = size || 20; var svg = ICONS[name].replace('<svg', '<svg width="'+size+'" height="'+size+'"'); return `<span class="ico" style="width:${size}px;height:${size}px">${svg}</span>`; }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -255,7 +255,46 @@ var S = {
   assignId: null, assignDate: ''
 };
 
-function save(){ try{ localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); }catch(e){} }
+// ── IndexedDB (storage permanente) + localStorage como fallback ───────────────
+var DB = null;
+var DB_NAME = 'ordenApp', DB_STORE = 'tasks', DB_VERSION = 1;
+
+function initDB(callback) {
+  if(!window.indexedDB){ callback && callback(); return; }
+  var req = indexedDB.open(DB_NAME, DB_VERSION);
+  req.onupgradeneeded = function(e) {
+    e.target.result.createObjectStore(DB_STORE, {keyPath:'id'});
+  };
+  req.onsuccess = function(e) {
+    DB = e.target.result;
+    // Cargar tareas desde IndexedDB al iniciar
+    var tx = DB.transaction(DB_STORE, 'readonly');
+    var store = tx.objectStore(DB_STORE);
+    var all = store.getAll();
+    all.onsuccess = function() {
+      if(all.result && all.result.length > 0) {
+        // Ordenar por fechaCreacion descendente
+        S.tasks = all.result.sort(function(a,b){
+          return (b.fechaCreacion||'').localeCompare(a.fechaCreacion||'');
+        });
+        render();
+      }
+    };
+    callback && callback();
+  };
+  req.onerror = function(){ callback && callback(); };
+}
+
+function save() {
+  // Siempre guardar en localStorage como fallback
+  try { localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); } catch(e) {}
+  // Guardar en IndexedDB si está disponible
+  if(!DB) return;
+  var tx = DB.transaction(DB_STORE, 'readwrite');
+  var store = tx.objectStore(DB_STORE);
+  store.clear();
+  S.tasks.forEach(function(t){ store.put(t); });
+}
 
 function addTask(t){
   S.tasks.unshift(Object.assign({}, t, {id:uid(), fechaCreacion:new Date().toISOString()}));
@@ -616,7 +655,9 @@ document.getElementById('app').addEventListener('input', function(e){
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 render();
-setTimeout(function(){ var i=document.getElementById('qa-input'); if(i) i.focus(); },100);
+initDB(function(){
+  setTimeout(function(){ var i=document.getElementById('qa-input'); if(i) i.focus(); },100);
+});
 </script>
 </body>
 </html>
