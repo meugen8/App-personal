@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Orden</title>
   <link rel="manifest" href="manifest.json"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="theme-color" content="#3A7A3A"/>
@@ -257,54 +259,43 @@ var S = {
   assignId: null, assignDate: ''
 };
 
-// ── IndexedDB (storage permanente) + localStorage como fallback ───────────────
-var DB = null;
-var DB_NAME = 'ordenApp', DB_STORE = 'tasks', DB_VERSION = 1;
+// ── Firebase ──────────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyB0ZCH1UirnjjPtvG39D-e6lDPTkTRJhBU",
+  authDomain: "ordenpersonal-4d6b9.firebaseapp.com",
+  projectId: "ordenpersonal-4d6b9",
+  storageBucket: "ordenpersonal-4d6b9.firebasestorage.app",
+  messagingSenderId: "1092278958077",
+  appId: "1:1092278958077:web:0b343c7b51f8db69dd4b94"
+});
+var db = firebase.firestore();
+var COL = 'ordenTasks';
 
-function initDB(callback) {
-  if(!window.indexedDB){ callback && callback(); return; }
-  var req = indexedDB.open(DB_NAME, DB_VERSION);
-  req.onupgradeneeded = function(e) {
-    e.target.result.createObjectStore(DB_STORE, {keyPath:'id'});
-  };
-  req.onsuccess = function(e) {
-    DB = e.target.result;
-    // Cargar tareas desde IndexedDB al iniciar
-    var tx = DB.transaction(DB_STORE, 'readonly');
-    var store = tx.objectStore(DB_STORE);
-    var all = store.getAll();
-    all.onsuccess = function() {
-      if(all.result && all.result.length > 0) {
-        // Ordenar por fechaCreacion descendente
-        S.tasks = all.result.sort(function(a,b){
-          return (b.fechaCreacion||'').localeCompare(a.fechaCreacion||'');
-        });
-        render();
-      }
-    };
-    callback && callback();
-  };
-  req.onerror = function(){ callback && callback(); };
+function initFirestore() {
+  db.collection(COL).orderBy('fechaCreacion', 'desc')
+    .onSnapshot(function(snap) {
+      S.tasks = snap.docs.map(function(d){ return d.data(); });
+      try { localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); } catch(e){}
+      render();
+    }, function(err) {
+      console.warn('Firestore:', err);
+    });
 }
 
 function save() {
-  // Siempre guardar en localStorage como fallback
   try { localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); } catch(e) {}
-  // Guardar en IndexedDB si está disponible
-  if(!DB) return;
-  var tx = DB.transaction(DB_STORE, 'readwrite');
-  var store = tx.objectStore(DB_STORE);
-  store.clear();
-  S.tasks.forEach(function(t){ store.put(t); });
 }
 
 function addTask(t){
-  S.tasks.unshift(Object.assign({}, t, {id:uid(), fechaCreacion:new Date().toISOString()}));
+  var task = Object.assign({}, t, {id:uid(), fechaCreacion:new Date().toISOString()});
+  S.tasks.unshift(task);
   save();
+  db.collection(COL).doc(task.id).set(task);
 }
 function updTask(id,u){
   S.tasks = S.tasks.map(function(t){ return t.id===id ? Object.assign({},t,u) : t; });
   save();
+  db.collection(COL).doc(id).update(u);
 }
 
 function resetQA(){
@@ -657,9 +648,8 @@ document.getElementById('app').addEventListener('input', function(e){
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 render();
-initDB(function(){
-  setTimeout(function(){ var i=document.getElementById('qa-input'); if(i) i.focus(); },100);
-});
+initFirestore();
+setTimeout(function(){ var i=document.getElementById('qa-input'); if(i) i.focus(); },100);
 </script>
 </body>
 </html>
