@@ -415,8 +415,19 @@ function renderQA(){
 function renderHoy(){
   var today = todayStr();
   var agendadas = S.tasks
-    .filter(function(t){ return t.estado!=='hecha' && t.fecha===today && (t.tipo==='presencial'||t.tipo==='deadline'); })
-    .sort(function(a,b){ return (a.horario||'99:99').localeCompare(b.horario||'99:99'); });
+    .filter(function(t){
+      if(t.estado==='hecha') return false;
+      if(t.tipo==='presencial') return t.fecha===today;
+      if(t.tipo==='deadline') return t.fecha && t.fecha>=today;
+      return false;
+    })
+    .sort(function(a,b){
+      // presenciales primero (por horario), deadlines después (por fecha límite)
+      if(a.tipo==='presencial' && b.tipo!=='presencial') return -1;
+      if(a.tipo!=='presencial' && b.tipo==='presencial') return 1;
+      if(a.tipo==='deadline' && b.tipo==='deadline') return (a.fecha||'').localeCompare(b.fecha||'');
+      return (a.horario||'99:99').localeCompare(b.horario||'99:99');
+    });
   var libres = S.tasks.filter(function(t){ return t.estado!=='hecha' && t.tipo==='libre' && !t.fecha; });
 
   return renderQA()
