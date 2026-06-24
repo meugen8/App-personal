@@ -94,7 +94,10 @@
     /* stepper */
     .stepper{border-top:.5px solid var(--border);padding:14px 16px 16px;animation:slideIn .18s ease}
     @keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-    .step-progress{display:flex;gap:5px;margin-bottom:12px}
+    .step-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .step-progress{display:flex;gap:5px}
+    .step-back{background:none;border:none;font-size:11px;color:var(--sec);cursor:pointer;font-family:inherit;padding:0;transition:color .12s}
+    .step-back:hover{color:var(--text)}
     .step-pip{height:3px;border-radius:2px;background:#E5E3DF;transition:all .2s}
     .step-pip.done{background:var(--sage-dark);width:12px}
     .step-pip.current{background:var(--sage-dark);width:20px}
@@ -218,10 +221,10 @@ const PRIOS    = ['Alta','Normal','Cuando pueda'];
 const PRIO_KEY = {'Alta':'alta','Normal':'normal','Cuando pueda':'cuando'};
 const MESES    = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DOWS     = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-const DUR_OPTS = [{l:'15 min',v:15},{l:'30 min',v:30},{l:'1 h',v:60},{l:'2 h',v:120}];
-const NAV      = [{id:'hoy',icon:'sun',label:'Hoy'},{id:'cal',icon:'cal',label:'Calendario'},{id:'bandeja',icon:'inbox',label:'Bandeja'},{id:'libre',icon:'clock',label:'Tiempo libre'}];
-const TITLES   = {hoy:'Hoy',cal:'Calendario',bandeja:'Bandeja de entrada',libre:'Tengo tiempo libre'};
-const BNAV_LBL = {hoy:'Hoy',cal:'Agenda',bandeja:'Bandeja',libre:'Tiempo'};
+const DUR_OPTS = [{l:'15 min',v:15},{l:'30 min',v:30},{l:'1 h',v:60},{l:'2 h',v:120},{l:'3 h',v:180},{l:'4 h',v:240},{l:'+ de 4 h',v:300}];
+const NAV      = [{id:'hoy',icon:'sun',label:'Hoy'},{id:'cal',icon:'cal',label:'Calendario'},{id:'libre',icon:'clock',label:'Tiempo libre'}];
+const TITLES   = {hoy:'Hoy',cal:'Calendario',libre:'Tengo tiempo libre'};
+const BNAV_LBL = {hoy:'Hoy',cal:'Agenda',libre:'Tiempo'};
 
 // ── SVG Icons ─────────────────────────────────────────────────────────────────
 const ICONS = {
@@ -394,7 +397,11 @@ function renderStepper(){
       </div>`;
   }
 
-  return `<div class="stepper"><div class="step-progress">${pips}</div>${body}</div>`;
+  var backBtn = S.qaStep !== 0
+    ? `<button class="step-back" data-action="qa-back">← Atrás</button>`
+    : `<button class="step-back" data-action="qa-cancel">✕ Cancelar</button>`;
+
+  return `<div class="stepper"><div class="step-header"><div class="step-progress">${pips}</div>${backBtn}</div>${body}</div>`;
 }
 
 function renderQA(){
@@ -535,10 +542,9 @@ function render(){
   var botNav=NAV.map(function(n){ return `<button class="bnav-item${S.section===n.id?' active':''}" data-action="nav" data-sec="${n.id}">${ico(n.icon,20)}<span>${BNAV_LBL[n.id]}</span></button>`; }).join('');
 
   var content='';
-  if(S.section==='hoy')     content=renderHoy();
-  else if(S.section==='cal')     content=renderCal();
-  else if(S.section==='bandeja') content=renderBandeja();
-  else if(S.section==='libre')   content=renderLibre();
+  if(S.section==='hoy')        content=renderHoy();
+  else if(S.section==='cal')   content=renderCal();
+  else if(S.section==='libre') content=renderLibre();
 
   document.getElementById('app').innerHTML=`
     <div class="sidebar"><div class="sidebar-brand">O</div>${sideNav}</div>
@@ -580,6 +586,16 @@ document.getElementById('app').addEventListener('click', function(e){
 
   } else if(a==='assign-cancel'){
     S.assignId=null; render();
+
+  } else if(a==='qa-cancel'){
+    resetQA(); render();
+
+  } else if(a==='qa-back'){
+    if(S.qaStep===0.5){ S.qaStep=0; S.qaForm.tipo=null; }
+    else if(S.qaStep===1){ S.qaStep = S.qaForm.tipo && S.qaForm.tipo!=='libre' ? 0.5 : 0; S.qaForm.duracion=null; }
+    else if(S.qaStep===2){ S.qaStep=1; S.qaForm.categoria=null; }
+    else if(S.qaStep===3){ S.qaStep=2; S.qaForm.prioridad=null; }
+    render();
 
   } else if(a==='qa-tipo'){
     S.qaForm.tipo=el.dataset.val;
