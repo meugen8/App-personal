@@ -198,6 +198,29 @@
     .tbtn.on{background:var(--sage);border-color:var(--sage);color:var(--sage-dark);font-weight:500}
     .warn-tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;background:#FFF3CD;color:#856404}
 
+    /* frase */
+    .frase{font-size:12px;color:var(--sec);font-style:italic;text-align:center;padding:10px 0 4px;letter-spacing:.02em}
+
+    /* stats */
+    .hoy-stats{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+    .stat-pill{display:flex;align-items:baseline;gap:5px;padding:8px 14px;border-radius:8px;border:.5px solid var(--border)}
+    .done-pill{background:#F0F7F0}
+    .pend-pill{background:#FFF8F0}
+    .stat-n{font-size:20px;font-weight:500}
+    .done-pill .stat-n{color:var(--sage-dark)}
+    .pend-pill .stat-n{color:#EF9F27}
+    .stat-l{font-size:11px;color:var(--sec)}
+    .notif-btn{padding:6px 12px;border-radius:20px;border:.5px solid var(--border);background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:var(--sec);transition:all .12s}
+    .notif-btn:hover{background:var(--sage);color:var(--sage-dark)}
+
+    /* recurrencia badge */
+    .recur-tag{font-size:10px;color:var(--sage-dark);background:#F0F7F0;padding:1px 6px;border-radius:10px;border:.5px solid var(--sage)}
+
+    /* pagos */
+    .add-pago-btn{padding:8px 16px;border-radius:8px;border:.5px dashed var(--border);background:transparent;font-size:13px;cursor:pointer;font-family:inherit;color:var(--sec);width:100%;text-align:left;transition:background .12s}
+    .add-pago-btn:hover{background:#F4F2EF}
+    .pago-form{background:#fff;border:.5px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+
     /* responsive */
     @media(max-width:768px){
       .sidebar{display:none}
@@ -222,9 +245,9 @@ const PRIO_KEY = {'Alta':'alta','Normal':'normal','Cuando pueda':'cuando'};
 const MESES    = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DOWS     = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const DUR_OPTS = [{l:'15 min',v:15},{l:'30 min',v:30},{l:'1 h',v:60},{l:'2 h',v:120},{l:'3 h',v:180},{l:'4 h',v:240},{l:'+ de 4 h',v:300}];
-const NAV      = [{id:'hoy',icon:'sun',label:'Hoy'},{id:'cal',icon:'cal',label:'Calendario'},{id:'libre',icon:'clock',label:'Tiempo libre'}];
-const TITLES   = {hoy:'Hoy',cal:'Calendario',libre:'Tengo tiempo libre'};
-const BNAV_LBL = {hoy:'Hoy',cal:'Agenda',libre:'Tiempo'};
+const NAV      = [{id:'hoy',icon:'sun',label:'Hoy'},{id:'cal',icon:'cal',label:'Calendario'},{id:'libre',icon:'clock',label:'Tiempo libre'},{id:'pagos',icon:'pagos',label:'Pagos'}];
+const TITLES   = {hoy:'Hoy',cal:'Calendario',libre:'Tengo tiempo libre',pagos:'Pagos'};
+const BNAV_LBL = {hoy:'Hoy',cal:'Agenda',libre:'Tiempo',pagos:'Pagos'};
 
 // ── SVG Icons ─────────────────────────────────────────────────────────────────
 const ICONS = {
@@ -238,6 +261,8 @@ const ICONS = {
   left:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
   right: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
   x:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  pagos: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+  recur: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
 };
 function ico(name, size) { size = size || 20; var svg = ICONS[name].replace('<svg', '<svg width="'+size+'" height="'+size+'"'); return `<span class="ico" style="width:${size}px;height:${size}px">${svg}</span>`; }
 
@@ -255,11 +280,12 @@ function prioDot(p){ return `<span class="pdot dot-${PRIO_KEY[p]||'cuando'}"></s
 var S = {
   section: 'hoy',
   tasks: (function(){ try{ return JSON.parse(localStorage.getItem('orden_v1')||'[]'); }catch(e){ return []; } })(),
+  pagos: (function(){ try{ return JSON.parse(localStorage.getItem('orden_pagos')||'[]'); }catch(e){ return []; } })(),
   qaText: '', qaStep: null, qaForm: {}, qaFecha: '', qaHorario: '',
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(), calSelDay: null,
-  banFilter: null,
   tiempoMin: null,
-  assignId: null, assignDate: ''
+  assignId: null, assignDate: '',
+  pagoForm: false, pagoNombre: '', pagoMonto: '', pagoDia: '', pagoGrupo: 'inicio'
 };
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
@@ -273,21 +299,26 @@ firebase.initializeApp({
 });
 var db = firebase.firestore();
 var COL = 'ordenTasks';
+var COL_PAGOS = 'ordenPagos';
 
 function initFirestore() {
-  db.collection(COL).orderBy('fechaCreacion', 'desc')
-    .onSnapshot(function(snap) {
+  db.collection(COL).orderBy('fechaCreacion','desc')
+    .onSnapshot(function(snap){
       S.tasks = snap.docs.map(function(d){ return d.data(); });
-      try { localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); } catch(e){}
+      try{ localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); }catch(e){}
+      scheduleAllNotifications();
       render();
-    }, function(err) {
-      console.warn('Firestore:', err);
-    });
+    }, function(err){ console.warn('Firestore tasks:', err); });
+
+  db.collection(COL_PAGOS).orderBy('dia','asc')
+    .onSnapshot(function(snap){
+      S.pagos = snap.docs.map(function(d){ return d.data(); });
+      try{ localStorage.setItem('orden_pagos', JSON.stringify(S.pagos)); }catch(e){}
+      render();
+    }, function(err){ console.warn('Firestore pagos:', err); });
 }
 
-function save() {
-  try { localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); } catch(e) {}
-}
+function save(){ try{ localStorage.setItem('orden_v1', JSON.stringify(S.tasks)); }catch(e){} }
 
 function addTask(t){
   var task = Object.assign({}, t, {id:uid(), fechaCreacion:new Date().toISOString()});
@@ -295,10 +326,83 @@ function addTask(t){
   save();
   db.collection(COL).doc(task.id).set(task);
 }
+
+function nextFecha(task){
+  if(!task.recurrencia || task.recurrencia==='ninguna') return null;
+  var base = task.fecha ? new Date(task.fecha+'T12:00:00') : new Date();
+  if(task.recurrencia==='diaria'){ base.setDate(base.getDate()+1); }
+  else if(task.recurrencia==='semanal'){ base.setDate(base.getDate()+7); }
+  else if(task.recurrencia==='quincenal'){ base.setDate(base.getDate()+14); }
+  else if(task.recurrencia==='mensual'){ base.setMonth(base.getMonth()+1); }
+  return base.toISOString().slice(0,10);
+}
+
 function updTask(id,u){
+  var prev = S.tasks.find(function(t){ return t.id===id; });
   S.tasks = S.tasks.map(function(t){ return t.id===id ? Object.assign({},t,u) : t; });
   save();
   db.collection(COL).doc(id).update(u);
+  // Si se marca como hecha y tiene recurrencia, crear siguiente ocurrencia
+  if(u.estado==='hecha' && prev && prev.recurrencia && prev.recurrencia!=='ninguna'){
+    var nf = nextFecha(prev);
+    if(nf){
+      var next = Object.assign({}, prev, {id:uid(), estado:'pendiente', fecha:nf, fechaCreacion:new Date().toISOString()});
+      S.tasks.unshift(next);
+      save();
+      db.collection(COL).doc(next.id).set(next);
+    }
+  }
+}
+
+// Pagos
+function addPago(p){
+  var pago = Object.assign({}, p, {id:uid(), fechaCreacion:new Date().toISOString()});
+  S.pagos.push(pago);
+  try{ localStorage.setItem('orden_pagos', JSON.stringify(S.pagos)); }catch(e){}
+  db.collection(COL_PAGOS).doc(pago.id).set(pago);
+}
+function updPago(id,u){
+  S.pagos = S.pagos.map(function(p){ return p.id===id ? Object.assign({},p,u) : p; });
+  try{ localStorage.setItem('orden_pagos', JSON.stringify(S.pagos)); }catch(e){}
+  db.collection(COL_PAGOS).doc(id).update(u);
+}
+function delPago(id){
+  S.pagos = S.pagos.filter(function(p){ return p.id!==id; });
+  try{ localStorage.setItem('orden_pagos', JSON.stringify(S.pagos)); }catch(e){}
+  db.collection(COL_PAGOS).doc(id).delete();
+}
+
+// ── Notificaciones ────────────────────────────────────────────────────────────
+var _notifTimers = [];
+function scheduleAllNotifications(){
+  _notifTimers.forEach(function(t){ clearTimeout(t); });
+  _notifTimers = [];
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  var today = todayStr();
+  S.tasks.forEach(function(t){
+    if(t.estado==='hecha' || !t.fecha || !t.horario) return;
+    if(t.fecha !== today) return;
+    var parts = t.horario.split(':');
+    var taskTime = new Date();
+    taskTime.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+    var notifTime = new Date(taskTime.getTime() - 15*60*1000);
+    var diff = notifTime - Date.now();
+    if(diff > 0){
+      var timer = setTimeout(function(){
+        new Notification('Orden — en 15 minutos', {body: t.texto, icon:'/icon.jpg'});
+      }, diff);
+      _notifTimers.push(timer);
+    }
+  });
+}
+function requestNotifPermission(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission==='default'){
+    Notification.requestPermission().then(function(p){
+      if(p==='granted') scheduleAllNotifications();
+      render();
+    });
+  }
 }
 
 function resetQA(){
@@ -316,7 +420,8 @@ function commitQA(){
     categoria: S.qaForm.categoria||null,
     prioridad: S.qaForm.prioridad||'Normal',
     estado: 'pendiente',
-    recurrencia: null, recordatorio: null
+    recurrencia: S.qaForm.recurrencia||'ninguna',
+    recordatorio: null
   });
   resetQA();
 }
@@ -330,7 +435,8 @@ function renderTask(t){
     + (t.duracion ? `<span class="tc-time">${fmtDur(t.duracion)}</span>` : '')
     + (t.horario  ? `<span class="tc-time">${esc(t.horario)}</span>` : '')
     + (t.fecha && t.tipo==='deadline'   ? `<span class="tc-time">⚑ ${fmtDate(t.fecha)}</span>` : '')
-    + (t.fecha && t.tipo==='presencial' ? `<span class="tc-time">📍 ${fmtDate(t.fecha)}</span>` : '');
+    + (t.fecha && t.tipo==='presencial' ? `<span class="tc-time">📍 ${fmtDate(t.fecha)}</span>` : '')
+    + (t.recurrencia && t.recurrencia!=='ninguna' ? `<span class="recur-tag">↻ ${t.recurrencia}</span>` : '');
 
   var assignHtml = S.assignId===t.id ? `
     <div class="assign-wrap">
@@ -361,7 +467,6 @@ function renderTask(t){
 function renderStepper(){
   if(S.qaStep===null) return '';
   var idx = S.qaStep===0||S.qaStep===0.5 ? 0 : S.qaStep;
-  var pips = [0,1,2,3].map(function(i){ return `<div class="step-pip ${i<idx?'done':i===idx?'current':'todo'}"></div>`; }).join('');
   var body = '';
 
   if(S.qaStep===0){
@@ -395,8 +500,18 @@ function renderStepper(){
       <div class="step-opts">
         ${PRIOS.map(function(p){ return `<button class="step-opt" data-action="qa-prio" data-val="${esc(p)}">${prioDot(p)} ${esc(p)}</button>`; }).join('')}
       </div>`;
+  } else if(S.qaStep===4){
+    body = `<div class="step-label">¿Se repite?</div>
+      <div class="step-opts">
+        <button class="step-opt" data-action="qa-recur" data-val="ninguna">No se repite</button>
+        <button class="step-opt" data-action="qa-recur" data-val="diaria">Todos los días</button>
+        <button class="step-opt" data-action="qa-recur" data-val="semanal">Cada semana</button>
+        <button class="step-opt" data-action="qa-recur" data-val="quincenal">Cada 15 días</button>
+        <button class="step-opt" data-action="qa-recur" data-val="mensual">Mensual</button>
+      </div>`;
   }
 
+  var pips = [0,1,2,3,4].map(function(i){ return `<div class="step-pip ${i<idx?'done':i===idx?'current':'todo'}"></div>`; }).join('');
   var backBtn = S.qaStep !== 0
     ? `<button class="step-back" data-action="qa-back">← Atrás</button>`
     : `<button class="step-back" data-action="qa-cancel">✕ Cancelar</button>`;
@@ -421,6 +536,21 @@ function renderQA(){
 // ── Section renderers ─────────────────────────────────────────────────────────
 function renderHoy(){
   var today = todayStr();
+
+  var hechasHoy = S.tasks.filter(function(t){ return t.estado==='hecha' && t.fechaCreacion && t.fechaCreacion.slice(0,10)===today; }).length;
+  var pendientesHoy = S.tasks.filter(function(t){ return t.estado!=='hecha' && (t.fecha===today || t.tipo==='libre'); }).length;
+
+  var notifBtn = ('Notification' in window && Notification.permission==='default')
+    ? `<button class="notif-btn" data-action="req-notif">🔔 Activar notificaciones</button>` : '';
+
+  var counter = `<div class="hoy-stats">
+    <div class="stat-pill done-pill"><span class="stat-n">${hechasHoy}</span><span class="stat-l">completadas</span></div>
+    <div class="stat-pill pend-pill"><span class="stat-n">${pendientesHoy}</span><span class="stat-l">pendientes</span></div>
+    ${notifBtn}
+  </div>`;
+
+  var frase = `<div class="frase">Nunca olvides por qué empezaste</div>`;
+
   var agendadas = S.tasks
     .filter(function(t){
       if(t.estado==='hecha') return false;
@@ -429,17 +559,27 @@ function renderHoy(){
       return false;
     })
     .sort(function(a,b){
-      // presenciales primero (por horario), deadlines después (por fecha límite)
       if(a.tipo==='presencial' && b.tipo!=='presencial') return -1;
       if(a.tipo!=='presencial' && b.tipo==='presencial') return 1;
       if(a.tipo==='deadline' && b.tipo==='deadline') return (a.fecha||'').localeCompare(b.fecha||'');
       return (a.horario||'99:99').localeCompare(b.horario||'99:99');
     });
+
+  var vencidas = S.tasks.filter(function(t){
+    return t.estado!=='hecha' && t.fecha && t.fecha<today && t.tipo==='deadline';
+  });
+
   var libres = S.tasks.filter(function(t){ return t.estado!=='hecha' && t.tipo==='libre' && !t.fecha; });
 
-  return renderQA()
-    + `<div class="sec-block"><div class="sec-label">Agendadas hoy</div>`
-    + (agendadas.length ? agendadas.map(renderTask).join('') : '<div class="empty">Sin tareas agendadas para hoy</div>')
+  var vencidasBlock = vencidas.length ? `<div class="sec-block">
+    <div class="sec-label" style="color:#E24B4A">⚠ Vencidas</div>
+    ${vencidas.map(renderTask).join('')}
+  </div>` : '';
+
+  return frase + counter + renderQA()
+    + vencidasBlock
+    + `<div class="sec-block"><div class="sec-label">Agendadas</div>`
+    + (agendadas.length ? agendadas.map(renderTask).join('') : '<div class="empty">Sin tareas agendadas</div>')
     + `</div><div class="sec-block"><div class="sec-label">Pendientes libres</div>`
     + (libres.length ? libres.map(renderTask).join('') : '<div class="empty">Sin pendientes libres</div>')
     + `</div>`;
@@ -532,6 +672,55 @@ function renderLibre(){
   return `<div class="sec-block"><div class="sec-label" style="margin-bottom:12px">¿Cuánto tiempo tenés disponible?</div><div class="tiempo-btns">${btns}</div></div>${results}`;
 }
 
+function renderPagos(){
+  var inicio = S.pagos.filter(function(p){ return p.grupo==='inicio'; });
+  var durante = S.pagos.filter(function(p){ return p.grupo==='durante'; });
+
+  function pagoCard(p){
+    var pagado = p.estado==='pagado';
+    return `<div class="task-card${pagado?' done':''}">
+      <div class="tc-check${pagado?' checked':''}" data-action="pago-toggle" data-id="${p.id}">${pagado?ico('check',10):''}</div>
+      <div class="tc-body">
+        <div class="tc-name"${pagado?' style="text-decoration:line-through"':''}>${esc(p.nombre)}</div>
+        <div class="tc-meta">
+          ${p.monto?`<span class="tc-time">$${esc(p.monto)}</span>`:''}
+          ${p.dia?`<span class="tc-time">Día ${esc(p.dia)}</span>`:''}
+        </div>
+      </div>
+      <button class="tc-btn" data-action="pago-del" data-id="${p.id}" style="color:#E24B4A">Eliminar</button>
+    </div>`;
+  }
+
+  var formHtml = S.pagoForm ? `<div class="pago-form">
+    <input class="step-input" id="pago-nombre" placeholder="Nombre del pago" value="${esc(S.pagoNombre)}" style="flex:1"/>
+    <input class="step-input" id="pago-monto" placeholder="Monto $" type="number" value="${esc(S.pagoMonto)}" style="width:100px"/>
+    <input class="step-input" id="pago-dia" placeholder="Día" type="number" min="1" max="31" value="${esc(S.pagoDia)}" style="width:70px"/>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer">
+        <input type="radio" name="pago-grupo" value="inicio" ${S.pagoGrupo==='inicio'?'checked':''} data-action="pago-grupo"/> Inicio de mes
+      </label>
+      <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer">
+        <input type="radio" name="pago-grupo" value="durante" ${S.pagoGrupo==='durante'?'checked':''} data-action="pago-grupo"/> Durante el mes
+      </label>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="step-confirm" data-action="pago-save">Guardar</button>
+      <button class="tc-btn" data-action="pago-cancel">Cancelar</button>
+    </div>
+  </div>` : `<button class="add-pago-btn" data-action="pago-new">+ Agregar pago</button>`;
+
+  return `
+    ${formHtml}
+    <div class="sec-block" style="margin-top:20px">
+      <div class="sec-label">Inicio de mes</div>
+      ${inicio.length ? inicio.map(pagoCard).join('') : '<div class="empty">Sin pagos de inicio de mes</div>'}
+    </div>
+    <div class="sec-block">
+      <div class="sec-label">Durante el mes</div>
+      ${durante.length ? durante.map(pagoCard).join('') : '<div class="empty">Sin pagos durante el mes</div>'}
+    </div>`;
+}
+
 // ── Main render ───────────────────────────────────────────────────────────────
 function render(){
   var now=new Date();
@@ -542,9 +731,10 @@ function render(){
   var botNav=NAV.map(function(n){ return `<button class="bnav-item${S.section===n.id?' active':''}" data-action="nav" data-sec="${n.id}">${ico(n.icon,20)}<span>${BNAV_LBL[n.id]}</span></button>`; }).join('');
 
   var content='';
-  if(S.section==='hoy')        content=renderHoy();
-  else if(S.section==='cal')   content=renderCal();
-  else if(S.section==='libre') content=renderLibre();
+  if(S.section==='hoy')         content=renderHoy();
+  else if(S.section==='cal')    content=renderCal();
+  else if(S.section==='libre')  content=renderLibre();
+  else if(S.section==='pagos')  content=renderPagos();
 
   document.getElementById('app').innerHTML=`
     <div class="sidebar"><div class="sidebar-brand">O</div>${sideNav}</div>
@@ -595,6 +785,7 @@ document.getElementById('app').addEventListener('click', function(e){
     else if(S.qaStep===1){ S.qaStep = S.qaForm.tipo && S.qaForm.tipo!=='libre' ? 0.5 : 0; S.qaForm.duracion=null; }
     else if(S.qaStep===2){ S.qaStep=1; S.qaForm.categoria=null; }
     else if(S.qaStep===3){ S.qaStep=2; S.qaForm.prioridad=null; }
+    else if(S.qaStep===4){ S.qaStep=3; S.qaForm.recurrencia=null; }
     render();
 
   } else if(a==='qa-tipo'){
@@ -616,12 +807,17 @@ document.getElementById('app').addEventListener('click', function(e){
 
   } else if(a==='qa-prio'){
     S.qaForm.prioridad=el.dataset.val;
+    S.qaStep=4; render();
+
+  } else if(a==='qa-recur'){
+    S.qaForm.recurrencia=el.dataset.val;
     commitQA(); render();
     setTimeout(function(){ var i=document.getElementById('qa-input'); if(i) i.focus(); },50);
 
   } else if(a==='qa-skip'){
     if(S.qaStep===1) S.qaStep=2;
     else if(S.qaStep===2) S.qaStep=3;
+    else if(S.qaStep===3) S.qaStep=4;
     render();
 
   } else if(a==='cal-day'){
@@ -649,6 +845,37 @@ document.getElementById('app').addEventListener('click', function(e){
 
   } else if(a==='tiempo-sel'){
     S.tiempoMin=parseInt(el.dataset.val); render();
+
+  } else if(a==='req-notif'){
+    requestNotifPermission();
+
+  } else if(a==='pago-new'){
+    S.pagoForm=true; S.pagoNombre=''; S.pagoMonto=''; S.pagoDia=''; S.pagoGrupo='inicio';
+    render();
+
+  } else if(a==='pago-cancel'){
+    S.pagoForm=false; render();
+
+  } else if(a==='pago-save'){
+    var nom=document.getElementById('pago-nombre');
+    var mon=document.getElementById('pago-monto');
+    var dia=document.getElementById('pago-dia');
+    if(nom&&nom.value.trim()){
+      addPago({nombre:nom.value.trim(), monto:mon?mon.value:'', dia:dia?dia.value:'', grupo:S.pagoGrupo, estado:'pendiente'});
+      S.pagoForm=false;
+    }
+    render();
+
+  } else if(a==='pago-toggle'){
+    var p=S.pagos.find(function(p){ return p.id===el.dataset.id; });
+    if(p) updPago(p.id,{estado:p.estado==='pagado'?'pendiente':'pagado'});
+    render();
+
+  } else if(a==='pago-del'){
+    delPago(el.dataset.id); render();
+
+  } else if(a==='pago-grupo'){
+    S.pagoGrupo=el.dataset.val||el.value; render();
   }
 });
 
@@ -671,6 +898,10 @@ document.getElementById('app').addEventListener('input', function(e){
   if(e.target.id==='qa-fecha') S.qaFecha=e.target.value;
   if(e.target.id==='qa-horario') S.qaHorario=e.target.value;
   if(e.target.id==='assign-date-input') S.assignDate=e.target.value;
+  if(e.target.id==='pago-nombre') S.pagoNombre=e.target.value;
+  if(e.target.id==='pago-monto') S.pagoMonto=e.target.value;
+  if(e.target.id==='pago-dia') S.pagoDia=e.target.value;
+  if(e.target.name==='pago-grupo') S.pagoGrupo=e.target.value;
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
