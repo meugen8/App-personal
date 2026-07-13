@@ -61,7 +61,7 @@
       display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0
     }
     .topbar-title{font-size:16px;font-weight:500}
-    .topbar-date{font-size:12px;color:var(--sec)}
+    .topbar-date{font-size:15px;font-weight:500;color:var(--text)}
     .content{flex:1;overflow-y:auto;padding:24px}
 
     /* bottom nav */
@@ -233,6 +233,32 @@
     .add-pago-btn:hover{background:#F4F2EF}
     .pago-form{background:#fff;border:.5px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
 
+    /* tags */
+    .tag-chip{font-size:10px;padding:2px 7px;border-radius:10px;background:#EEECEA;color:#666;border:.5px solid #E0DDD9}
+
+    /* hoy two-col layout */
+    .hoy-above{margin-bottom:16px}
+    .hoy-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+
+    /* day planner */
+    .planner{background:#fff;border:.5px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+    .planner-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;border-bottom:.5px solid var(--border)}
+    .planner-head-title{font-size:11px;font-weight:500;color:var(--sec);text-transform:uppercase;letter-spacing:.08em}
+    .planner-body{overflow-y:auto;max-height:calc(100vh - 220px)}
+    .planner-row{display:flex;align-items:stretch;border-bottom:.5px solid var(--border)}
+    .planner-row:last-child{border-bottom:none}
+    .planner-hour{width:42px;flex-shrink:0;font-size:11px;color:var(--sec);padding:9px 6px 9px 8px;text-align:right;border-right:.5px solid var(--border);line-height:1}
+    .planner-slot{flex:1;padding:5px 8px;min-height:34px;cursor:pointer}
+    .planner-slot:hover{background:#FAFAF8}
+    .planner-task-chip{padding:3px 8px;background:var(--sage);border-radius:5px;font-size:12px;cursor:pointer;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sage-dark);font-weight:500;display:block}
+    .planner-add-hint{font-size:12px;color:#CCC;line-height:1;padding-top:1px}
+    .planner-add-hint:hover{color:var(--sage-dark)}
+    .planner-add-form{display:flex;gap:4px;margin-top:2px}
+    .planner-add-form .step-input{flex:1;font-size:12px;padding:4px 8px}
+    .planner-slot.drag-over{background:#EEF5EE;outline:1.5px dashed var(--sage-dark);outline-offset:-2px;border-radius:4px}
+    /* cal done chips */
+    .cal-chip-done{opacity:.45;text-decoration:line-through}
+
     /* responsive */
     @media(max-width:768px){
       .sidebar{display:none}
@@ -241,6 +267,7 @@
       .topbar-date{display:none}
       .content{padding:16px;padding-bottom:80px}
       .cal-day{min-height:56px}
+      .hoy-grid{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -298,7 +325,10 @@ var S = {
   tiempoMin: null,
   assignId: null, assignDate: '',
   pagoForm: false, pagoNombre: '', pagoMonto: '', pagoDia: '', pagoGrupo: 'inicio',
-  editId: null, editForm: {}
+  editId: null, editForm: {},
+  hoyFilter: null,
+  plannerDay: 'today', plannerAddSlot: null,
+  _dragId: null
 };
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
@@ -449,7 +479,8 @@ function renderTask(t){
     + (t.horario  ? `<span class="tc-time">${esc(t.horario)}</span>` : '')
     + (t.fecha && t.tipo==='deadline'   ? `<span class="tc-time">⚑ ${fmtDate(t.fecha)}</span>` : '')
     + (t.fecha && t.tipo==='presencial' ? `<span class="tc-time">📍 ${fmtDate(t.fecha)}</span>` : '')
-    + (t.recurrencia && t.recurrencia!=='ninguna' ? `<span class="recur-tag">↻ ${t.recurrencia}</span>` : '');
+    + (t.recurrencia && t.recurrencia!=='ninguna' ? `<span class="recur-tag">↻ ${t.recurrencia}</span>` : '')
+    + (t.tags && t.tags.length ? t.tags.map(function(g){ return `<span class="tag-chip">${esc(g)}</span>`; }).join('') : '');
 
   var assignHtml = S.assignId===t.id ? `
     <div class="assign-wrap">
@@ -489,13 +520,14 @@ function renderTask(t){
         ${PRIOS.map(function(p){ return `<option value="${esc(p)}"${(ef.prioridad||t.prioridad)===p?' selected':''}>${esc(p)}</option>`; }).join('')}
       </select>
     </div>
+    <input class="step-input" id="edit-tags" value="${esc((ef.tags||t.tags||[]).join(', '))}" placeholder="Tags (separados por coma, opcional)" style="width:100%"/>
     <div style="display:flex;gap:8px">
       <button class="step-confirm" data-action="task-edit-save" data-id="${t.id}">Guardar</button>
       <button class="tc-btn" data-action="task-edit-cancel">Cancelar</button>
     </div>
   </div>` : '';
 
-  return `<div class="task-card${done?' done':''}" data-id="${t.id}">
+  return `<div class="task-card${done?' done':''}" data-id="${t.id}"${done?'':' draggable="true"'}>
     <div class="tc-check${done?' checked':''}" data-action="task-check" data-id="${t.id}">${done?ico('check',10):''}</div>
     <div class="tc-body">
       <div class="tc-name"${done?' style="text-decoration:line-through"':''}>${esc(t.texto)}</div>
@@ -577,6 +609,47 @@ function renderQA(){
 }
 
 // ── Section renderers ─────────────────────────────────────────────────────────
+function tomorrowStr(){ var d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); }
+
+function renderPlanner(){
+  var planDate = S.plannerDay==='today' ? todayStr() : tomorrowStr();
+  var planTasks = S.tasks.filter(function(t){ return t.fecha===planDate && t.horario && t.estado!=='hecha'; });
+  var hours = [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+
+  var slotsHtml = hours.map(function(h){
+    var hStr = String(h).padStart(2,'0');
+    var slotTasks = planTasks.filter(function(t){ return parseInt(t.horario.split(':')[0])===h; });
+    var tasksHtml = slotTasks.map(function(t){
+      return `<span class="planner-task-chip" data-action="task-check" data-id="${t.id}">${esc(t.texto)}</span>`;
+    }).join('');
+    var isAdding = S.plannerAddSlot===hStr;
+    var addHtml = isAdding ? `
+      <form class="planner-add-form" data-action="planner-add-form">
+        <input class="step-input" id="planner-text" placeholder="Tarea..." autofocus/>
+        <button type="submit" class="step-confirm" style="font-size:11px;padding:4px 10px">✓</button>
+        <button class="tc-btn" data-action="planner-add-cancel" style="font-size:11px">✕</button>
+      </form>`
+      : `<span class="planner-add-hint" data-action="planner-slot" data-h="${hStr}">+</span>`;
+    return `<div class="planner-row">
+      <div class="planner-hour">${hStr}:00</div>
+      <div class="planner-slot" data-h="${hStr}" data-action="planner-slot-area">
+        ${tasksHtml}${addHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="planner">
+    <div class="planner-head">
+      <span class="planner-head-title">Plan del día</span>
+      <div style="display:flex;gap:5px">
+        <button class="fchip${S.plannerDay==='today'?' on':''}" data-action="planner-day" data-val="today">Hoy</button>
+        <button class="fchip${S.plannerDay==='tomorrow'?' on':''}" data-action="planner-day" data-val="tomorrow">Mañana</button>
+      </div>
+    </div>
+    <div class="planner-body">${slotsHtml}</div>
+  </div>`;
+}
+
 function renderHoy(){
   var today = todayStr();
 
@@ -586,17 +659,26 @@ function renderHoy(){
   var notifBtn = ('Notification' in window && Notification.permission==='default')
     ? `<button class="notif-btn" data-action="req-notif">🔔 Activar notificaciones</button>` : '';
 
+  var frase = `<div class="frase">Nunca olvides por qué empezaste</div>`;
+
   var counter = `<div class="hoy-stats">
     <div class="stat-pill done-pill"><span class="stat-n">${hechasHoy}</span><span class="stat-l">completadas</span></div>
     <div class="stat-pill pend-pill"><span class="stat-n">${pendientesHoy}</span><span class="stat-l">pendientes</span></div>
     ${notifBtn}
   </div>`;
 
-  var frase = `<div class="frase">Nunca olvides por qué empezaste</div>`;
+  // Category filter chips
+  var filterChips = `<div class="filters" style="margin-bottom:14px">
+    <button class="fchip${!S.hoyFilter?' on':''}" data-action="hoy-filter" data-val="">Todas</button>
+    ${CATS.map(function(c){ return `<button class="fchip${S.hoyFilter===c?' on':''}" data-action="hoy-filter" data-val="${esc(c)}">${esc(c)}</button>`; }).join('')}
+  </div>`;
+
+  function catMatch(t){ return !S.hoyFilter || t.categoria===S.hoyFilter; }
 
   var agendadas = S.tasks
     .filter(function(t){
       if(t.estado==='hecha') return false;
+      if(!catMatch(t)) return false;
       if(t.tipo==='presencial') return t.fecha===today;
       if(t.tipo==='deadline') return t.fecha && t.fecha>=today;
       return false;
@@ -609,23 +691,26 @@ function renderHoy(){
     });
 
   var vencidas = S.tasks.filter(function(t){
-    return t.estado!=='hecha' && t.fecha && t.fecha<today && t.tipo==='deadline';
+    return t.estado!=='hecha' && t.fecha && t.fecha<today && t.tipo==='deadline' && catMatch(t);
   });
 
-  var libres = S.tasks.filter(function(t){ return t.estado!=='hecha' && t.tipo==='libre' && !t.fecha; });
+  var libres = S.tasks.filter(function(t){ return t.estado!=='hecha' && t.tipo==='libre' && !t.fecha && catMatch(t); });
 
   var vencidasBlock = vencidas.length ? `<div class="sec-block">
     <div class="sec-label" style="color:#E24B4A">⚠ Vencidas</div>
     ${vencidas.map(renderTask).join('')}
   </div>` : '';
 
-  return frase + counter + renderQA()
+  var leftCol = filterChips + renderQA()
     + vencidasBlock
     + `<div class="sec-block"><div class="sec-label">Agendadas</div>`
     + (agendadas.length ? agendadas.map(renderTask).join('') : '<div class="empty">Sin tareas agendadas</div>')
     + `</div><div class="sec-block"><div class="sec-label">Pendientes libres</div>`
     + (libres.length ? libres.map(renderTask).join('') : '<div class="empty">Sin pendientes libres</div>')
     + `</div>`;
+
+  return `<div class="hoy-above">${frase}${counter}</div>`
+    + `<div class="hoy-grid"><div>${leftCol}</div><div>${renderPlanner()}</div></div>`;
 }
 
 function renderCal(){
@@ -645,17 +730,30 @@ function renderCal(){
     var dstr = ds(y,m,c.d);
     var isToday = dstr===today;
     var isSel = S.calSelDay===c.d;
-    var dt = S.tasks.filter(function(t){ return t.fecha===dstr && t.estado!=='hecha'; });
-    var chips = dt.slice(0,2).map(function(t){ return `<span class="cal-chip cat-${CAT_CLS[t.categoria]||'vida'}">${esc(t.texto)}</span>`; }).join('');
-    var more = dt.length>2 ? `<span class="cal-more">+${dt.length-2}</span>` : '';
+    var dt = S.tasks.filter(function(t){ return t.fecha===dstr; });
+    var pending = dt.filter(function(t){ return t.estado!=='hecha'; });
+    var done = dt.filter(function(t){ return t.estado==='hecha'; });
+    var shown = pending.slice(0,2);
+    var chips = shown.map(function(t){ return `<span class="cal-chip cat-${CAT_CLS[t.categoria]||'vida'}">${esc(t.texto)}</span>`; }).join('')
+      + (pending.length===0&&done.length>0 ? done.slice(0,1).map(function(t){ return `<span class="cal-chip cal-chip-done cat-${CAT_CLS[t.categoria]||'vida'}">${esc(t.texto)}</span>`; }).join('') : '');
+    var moreCount = pending.length>2 ? pending.length-2 : (pending.length===0&&done.length>1 ? done.length-1 : 0);
+    var more = moreCount>0 ? `<span class="cal-more">+${moreCount}</span>` : '';
     return `<div class="cal-day${isToday?' today':''}${isSel?' selected':''}" data-action="cal-day" data-d="${c.d}">
       <div class="cal-day-num">${c.d}</div>${chips}${more}</div>`;
   }).join('');
 
   var selDs = S.calSelDay ? ds(y,m,S.calSelDay) : null;
-  var selTasks = selDs ? S.tasks
+  var selPending = selDs ? S.tasks
     .filter(function(t){ return t.fecha===selDs && t.estado!=='hecha'; })
     .sort(function(a,b){ return (a.horario||'99:99').localeCompare(b.horario||'99:99'); }) : [];
+  var selDone = selDs ? S.tasks
+    .filter(function(t){ return t.fecha===selDs && t.estado==='hecha'; })
+    .sort(function(a,b){ return (a.horario||'99:99').localeCompare(b.horario||'99:99'); }) : [];
+
+  function calTaskRow(t){
+    var horario = t.horario ? `<div class="cal-task-time">${t.horario}</div>` : `<div class="cal-task-time notime">—</div>`;
+    return `<div class="cal-task-row">${horario}<div class="cal-task-body">${renderTask(t)}</div></div>`;
+  }
 
   var detail = S.calSelDay ? `<div style="margin-top:20px">
     <div class="day-head">
@@ -663,15 +761,8 @@ function renderCal(){
       <button class="day-close" data-action="cal-close">${ico('x',12)}</button>
     </div>
     ${renderQA()}
-    ${selTasks.length ? selTasks.map(function(t){
-      var horario = t.horario
-        ? `<div class="cal-task-time">${t.horario}</div>`
-        : `<div class="cal-task-time notime">—</div>`;
-      return `<div class="cal-task-row">
-        ${horario}
-        <div class="cal-task-body">${renderTask(t)}</div>
-      </div>`;
-    }).join('') : '<div class="empty">Sin tareas para este día</div>'}
+    ${selPending.length ? selPending.map(calTaskRow).join('') : '<div class="empty">Sin tareas pendientes para este día</div>'}
+    ${selDone.length ? `<div class="sec-label" style="margin-top:16px;margin-bottom:8px">Realizadas</div>${selDone.map(calTaskRow).join('')}` : ''}
   </div>` : '';
 
   return `<div class="cal-card">
@@ -828,6 +919,8 @@ document.getElementById('app').addEventListener('click', function(e){
     var hor=document.getElementById('edit-horario');
     var cat=document.getElementById('edit-cat');
     var pri=document.getElementById('edit-prio');
+    var tagsEl=document.getElementById('edit-tags');
+    var tagsVal=tagsEl&&tagsEl.value.trim()?tagsEl.value.split(',').map(function(s){return s.trim();}).filter(Boolean):[];
     if(txt&&txt.value.trim()){
       updTask(el.dataset.id,{
         texto:txt.value.trim(),
@@ -835,7 +928,8 @@ document.getElementById('app').addEventListener('click', function(e){
         fecha:fec&&fec.value?fec.value:null,
         horario:hor&&hor.value?hor.value:null,
         categoria:cat&&cat.value?cat.value:null,
-        prioridad:pri?pri.value:'Normal'
+        prioridad:pri?pri.value:'Normal',
+        tags:tagsVal
       });
       S.editId=null; S.editForm={};
     }
@@ -956,17 +1050,44 @@ document.getElementById('app').addEventListener('click', function(e){
 
   } else if(a==='pago-grupo'){
     S.pagoGrupo=el.dataset.val||el.value; render();
+
+  } else if(a==='hoy-filter'){
+    S.hoyFilter=el.dataset.val||null; render();
+
+  } else if(a==='planner-day'){
+    S.plannerDay=el.dataset.val; S.plannerAddSlot=null; render();
+
+  } else if(a==='planner-slot'||a==='planner-slot-area'){
+    var hVal=el.dataset.h||(el.closest('[data-h]')&&el.closest('[data-h]').dataset.h)||null;
+    if(!hVal) return;
+    S.plannerAddSlot=hVal;
+    render();
+    setTimeout(function(){ var i=document.getElementById('planner-text'); if(i) i.focus(); },50);
+
+  } else if(a==='planner-add-cancel'){
+    S.plannerAddSlot=null; render();
   }
 });
 
 document.getElementById('app').addEventListener('submit', function(e){
   e.preventDefault();
-  if(!e.target.closest('[data-action="qa-form"]')) return;
-  var inp=document.getElementById('qa-input');
-  if(inp) S.qaText=inp.value;
-  if(!S.qaText.trim()) return;
-  S.qaStep=0;
-  render();
+  if(e.target.closest('[data-action="qa-form"]')){
+    var inp=document.getElementById('qa-input');
+    if(inp) S.qaText=inp.value;
+    if(!S.qaText.trim()) return;
+    S.qaStep=0;
+    render();
+  } else if(e.target.closest('[data-action="planner-add-form"]')){
+    var pi=document.getElementById('planner-text');
+    if(pi&&pi.value.trim()){
+      var planDate=S.plannerDay==='today'?todayStr():tomorrowStr();
+      addTask({texto:pi.value.trim(),tipo:'presencial',fecha:planDate,
+        horario:S.plannerAddSlot+':00',duracion:null,categoria:S.hoyFilter||null,
+        prioridad:'Normal',estado:'pendiente',recurrencia:'ninguna',recordatorio:null,tags:[]});
+      S.plannerAddSlot=null;
+    }
+    render();
+  }
 });
 
 document.getElementById('app').addEventListener('input', function(e){
@@ -982,6 +1103,50 @@ document.getElementById('app').addEventListener('input', function(e){
   if(e.target.id==='pago-monto') S.pagoMonto=e.target.value;
   if(e.target.id==='pago-dia') S.pagoDia=e.target.value;
   if(e.target.name==='pago-grupo') S.pagoGrupo=e.target.value;
+});
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────────
+document.getElementById('app').addEventListener('dragstart', function(e){
+  var card=e.target.closest('.task-card[draggable="true"]');
+  if(!card) return;
+  S._dragId=card.dataset.id;
+  e.dataTransfer.setData('text/plain', card.dataset.id);
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(function(){ card.style.opacity='0.35'; },0);
+});
+
+document.getElementById('app').addEventListener('dragend', function(e){
+  var card=e.target.closest('.task-card');
+  if(card) card.style.opacity='';
+  document.querySelectorAll('.planner-slot.drag-over').forEach(function(s){ s.classList.remove('drag-over'); });
+});
+
+document.getElementById('app').addEventListener('dragover', function(e){
+  var slot=e.target.closest('.planner-slot');
+  if(!slot) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  document.querySelectorAll('.planner-slot.drag-over').forEach(function(s){ s.classList.remove('drag-over'); });
+  slot.classList.add('drag-over');
+});
+
+document.getElementById('app').addEventListener('dragleave', function(e){
+  var slot=e.target.closest('.planner-slot');
+  if(slot && !slot.contains(e.relatedTarget)) slot.classList.remove('drag-over');
+});
+
+document.getElementById('app').addEventListener('drop', function(e){
+  var slot=e.target.closest('.planner-slot');
+  if(!slot) return;
+  e.preventDefault();
+  slot.classList.remove('drag-over');
+  var taskId=e.dataTransfer.getData('text/plain')||S._dragId;
+  var h=slot.dataset.h;
+  if(!taskId||!h) return;
+  var planDate=S.plannerDay==='today'?todayStr():tomorrowStr();
+  updTask(taskId,{fecha:planDate,horario:h+':00',tipo:'presencial'});
+  S._dragId=null;
+  render();
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
