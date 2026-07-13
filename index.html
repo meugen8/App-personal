@@ -235,6 +235,14 @@
 
     /* tags */
     .tag-chip{font-size:10px;padding:2px 7px;border-radius:10px;background:#EEECEA;color:#666;border:.5px solid #E0DDD9}
+    .tag-c0{background:#FFE4E1;color:#C0392B;border-color:#F5C6C4}
+    .tag-c1{background:#DDEEFF;color:#2355A0;border-color:#C0D8F8}
+    .tag-c2{background:#D4EDDA;color:#1D7A3C;border-color:#B2DDB8}
+    .tag-c3{background:#E8DAFD;color:#6B2FA0;border-color:#D0B8F8}
+    .tag-c4{background:#FFE8CC;color:#A05A1D;border-color:#F5D4A8}
+    .tag-c5{background:#FDDDE6;color:#A02060;border-color:#F8B8CE}
+    .tag-c6{background:#D0F0ED;color:#1D7A72;border-color:#A8E0DC}
+    .tag-c7{background:#FFF3CC;color:#8A6A00;border-color:#F0DE90}
 
     /* hoy two-col layout */
     .hoy-above{margin-bottom:16px}
@@ -314,6 +322,7 @@ function fmtDur(m){ if(!m)return''; if(m<60)return m+' min'; if(m===60)return'1 
 function fmtDate(d){ if(!d)return''; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 function catBadge(cat){ return cat?`<span class="cbadge cat-${CAT_CLS[cat]||'vida'}">${esc(cat)}</span>`:''; }
 function prioDot(p){ return `<span class="pdot dot-${PRIO_KEY[p]||'cuando'}"></span>`; }
+function tagColor(name){ var h=0; for(var i=0;i<name.length;i++) h=(Math.imul(31,h)+name.charCodeAt(i))|0; return 'tag-c'+(Math.abs(h)%8); }
 
 // ── State ─────────────────────────────────────────────────────────────────────
 var S = {
@@ -327,6 +336,7 @@ var S = {
   pagoForm: false, pagoNombre: '', pagoMonto: '', pagoDia: '', pagoGrupo: 'inicio',
   editId: null, editForm: {},
   hoyFilter: null,
+  showDoneList: false,
   plannerDay: 'today', plannerAddSlot: null,
   _dragId: null
 };
@@ -480,7 +490,7 @@ function renderTask(t){
     + (t.fecha && t.tipo==='deadline'   ? `<span class="tc-time">⚑ ${fmtDate(t.fecha)}</span>` : '')
     + (t.fecha && t.tipo==='presencial' ? `<span class="tc-time">📍 ${fmtDate(t.fecha)}</span>` : '')
     + (t.recurrencia && t.recurrencia!=='ninguna' ? `<span class="recur-tag">↻ ${t.recurrencia}</span>` : '')
-    + (t.tags && t.tags.length ? t.tags.map(function(g){ return `<span class="tag-chip">${esc(g)}</span>`; }).join('') : '');
+    + (t.tags && t.tags.length ? t.tags.map(function(g){ return `<span class="tag-chip ${tagColor(g)}">${esc(g)}</span>`; }).join('') : '');
 
   var assignHtml = S.assignId===t.id ? `
     <div class="assign-wrap">
@@ -662,10 +672,17 @@ function renderHoy(){
   var frase = `<div class="frase">Nunca olvides por qué empezaste</div>`;
 
   var counter = `<div class="hoy-stats">
-    <div class="stat-pill done-pill"><span class="stat-n">${hechasHoy}</span><span class="stat-l">completadas</span></div>
+    <div class="stat-pill done-pill" data-action="toggle-done-list" style="cursor:pointer;user-select:none" title="Ver completadas">
+      <span class="stat-n">${hechasHoy}</span><span class="stat-l">completadas ${S.showDoneList?'▲':'▼'}</span>
+    </div>
     <div class="stat-pill pend-pill"><span class="stat-n">${pendientesHoy}</span><span class="stat-l">pendientes</span></div>
     ${notifBtn}
   </div>`;
+  var hechasHoyTasks = S.showDoneList ? S.tasks.filter(function(t){ return t.estado==='hecha' && t.fechaCreacion && t.fechaCreacion.slice(0,10)===today; }) : [];
+  var doneListHtml = S.showDoneList && hechasHoyTasks.length ? `<div class="sec-block" style="margin-bottom:14px">
+    <div class="sec-label">Completadas hoy — hacé click en ✓ para desmarcar</div>
+    ${hechasHoyTasks.map(renderTask).join('')}
+  </div>` : '';
 
   // Category filter chips
   var filterChips = `<div class="filters" style="margin-bottom:14px">
@@ -701,7 +718,7 @@ function renderHoy(){
     ${vencidas.map(renderTask).join('')}
   </div>` : '';
 
-  var leftCol = filterChips + renderQA()
+  var leftCol = doneListHtml + filterChips + renderQA()
     + vencidasBlock
     + `<div class="sec-block"><div class="sec-label">Agendadas</div>`
     + (agendadas.length ? agendadas.map(renderTask).join('') : '<div class="empty">Sin tareas agendadas</div>')
@@ -713,12 +730,40 @@ function renderHoy(){
     + `<div class="hoy-grid"><div>${leftCol}</div><div>${renderPlanner()}</div></div>`;
 }
 
+function recurDatesInMonth(task, y, m){
+  if(!task.fecha||!task.recurrencia||task.recurrencia==='ninguna'||task.estado==='hecha') return [];
+  var base=new Date(task.fecha+'T12:00:00');
+  var mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0);
+  if(base>mEnd) return [];
+  var step=task.recurrencia==='diaria'?1:task.recurrencia==='semanal'?7:task.recurrencia==='quincenal'?14:0;
+  var cur=new Date(base);
+  if(step>0&&cur<mStart){ var dif=Math.floor((mStart-cur)/86400000); cur.setDate(cur.getDate()+Math.floor(dif/step)*step); }
+  if(task.recurrencia==='mensual'){ while(cur<mStart) cur.setMonth(cur.getMonth()+1); }
+  var dates=[], limit=60;
+  while(cur<=mEnd&&limit-->0){
+    var dstr=cur.toISOString().slice(0,10);
+    if(cur>=mStart&&dstr!==task.fecha) dates.push(dstr);
+    if(step>0) cur.setDate(cur.getDate()+step);
+    else if(task.recurrencia==='mensual') cur.setMonth(cur.getMonth()+1);
+    else break;
+  }
+  return dates;
+}
+
 function renderCal(){
   var y=S.calYear, m=S.calMonth;
   var today=todayStr();
   var firstDow=new Date(y,m,1).getDay();
   var daysInMo=new Date(y,m+1,0).getDate();
   var prevLast=new Date(y,m,0).getDate();
+
+  var recurMap={};
+  S.tasks.forEach(function(task){
+    recurDatesInMonth(task,y,m).forEach(function(dstr){
+      if(!recurMap[dstr]) recurMap[dstr]=[];
+      recurMap[dstr].push(task);
+    });
+  });
 
   var cells=[];
   for(var i=firstDow-1;i>=0;i--) cells.push({d:prevLast-i,cur:false});
@@ -731,8 +776,10 @@ function renderCal(){
     var isToday = dstr===today;
     var isSel = S.calSelDay===c.d;
     var dt = S.tasks.filter(function(t){ return t.fecha===dstr; });
-    var pending = dt.filter(function(t){ return t.estado!=='hecha'; });
-    var done = dt.filter(function(t){ return t.estado==='hecha'; });
+    var dtIds={}; dt.forEach(function(t){ dtIds[t.id]=true; });
+    var allDay=dt.concat((recurMap[dstr]||[]).filter(function(t){ return !dtIds[t.id]; }));
+    var pending = allDay.filter(function(t){ return t.estado!=='hecha'; });
+    var done = allDay.filter(function(t){ return t.estado==='hecha'; });
     var shown = pending.slice(0,2);
     var chips = shown.map(function(t){ return `<span class="cal-chip cat-${CAT_CLS[t.categoria]||'vida'}">${esc(t.texto)}</span>`; }).join('')
       + (pending.length===0&&done.length>0 ? done.slice(0,1).map(function(t){ return `<span class="cal-chip cal-chip-done cat-${CAT_CLS[t.categoria]||'vida'}">${esc(t.texto)}</span>`; }).join('') : '');
@@ -743,9 +790,12 @@ function renderCal(){
   }).join('');
 
   var selDs = S.calSelDay ? ds(y,m,S.calSelDay) : null;
-  var selPending = selDs ? S.tasks
-    .filter(function(t){ return t.fecha===selDs && t.estado!=='hecha'; })
-    .sort(function(a,b){ return (a.horario||'99:99').localeCompare(b.horario||'99:99'); }) : [];
+  var selPending = selDs ? (function(){
+    var real=S.tasks.filter(function(t){ return t.fecha===selDs && t.estado!=='hecha'; });
+    var realIds={}; real.forEach(function(t){ realIds[t.id]=true; });
+    var virt=(recurMap[selDs]||[]).filter(function(t){ return t.estado!=='hecha'&&!realIds[t.id]; });
+    return real.concat(virt).sort(function(a,b){ return (a.horario||'99:99').localeCompare(b.horario||'99:99'); });
+  })() : [];
   var selDone = selDs ? S.tasks
     .filter(function(t){ return t.fecha===selDs && t.estado==='hecha'; })
     .sort(function(a,b){ return (a.horario||'99:99').localeCompare(b.horario||'99:99'); }) : [];
@@ -897,7 +947,7 @@ document.getElementById('app').addEventListener('click', function(e){
 
   if(a==='nav'){
     S.section=el.dataset.sec;
-    resetQA(); S.assignId=null;
+    resetQA(); S.assignId=null; S.showDoneList=false;
     render();
 
   } else if(a==='task-check'){
@@ -1050,6 +1100,9 @@ document.getElementById('app').addEventListener('click', function(e){
 
   } else if(a==='pago-grupo'){
     S.pagoGrupo=el.dataset.val||el.value; render();
+
+  } else if(a==='toggle-done-list'){
+    S.showDoneList=!S.showDoneList; render();
 
   } else if(a==='hoy-filter'){
     S.hoyFilter=el.dataset.val||null; render();
